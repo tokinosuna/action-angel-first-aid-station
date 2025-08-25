@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Break the Cycle: Overcoming Analysis Paralysis &amp; Trauma Loops</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* --- Universal Palettes & Fonts --- */
+            --font-pixel-en: 'Silkscreen', 'DotGothic16', sans-serif; /* English headers */
+            --font-pixel-main: 'DotGothic16', sans-serif; /* Main pixel font with CJK support */
+            
+            /* --- Cute Mode Palette --- */
+            --c-bg: #FFF0F5;
+            --c-container-bg: #FFFFFF;
+            --c-border: #F9A8D4;
+            --c-shadow: #F9A8D4;
+            --c-header: #E75480;
+            --c-text: #5D4037;
+            --c-accent: #FFB6C1;
+            --c-button-bg: #E75480;
+            --c-button-shadow: #F9A8D4;
+            --c-scroll-thumb: #F9A8D4;
+            --c-scroll-track: #FFF0F5;
+            --c-selection-bg: #F9A8D4;
+            --c-selection-text: #5D4037;
+            --c-user-msg-bg: #FCE7F3;
+            --c-bot-msg-bg: #FDF4F5;
+        }
+
+        .grumpy-mode {
+            /* --- Grumpy Mode Palette --- */
+            --c-bg: #1A1A2E;
+            --c-container-bg: #16213E;
+            --c-border: #E94560;
+            --c-shadow: #0F3460;
+            --c-header: #FF2E63;
+            --c-text: #E0E0E0;
+            --c-accent: #533483;
+            --c-button-bg: #E94560;
+            --c-button-shadow: #FF2E63;
+            --c-scroll-thumb: #E94560;
+            --c-scroll-track: #1A1A2E;
+            --c-selection-bg: #E94560;
+            --c-selection-text: #FFFFFF;
+            --c-user-msg-bg: #0F3460;
+            --c-bot-msg-bg: #1e2a4a;
+        }
+
+        /* --- Universal Style Reset & Cross-Browser Normalization --- */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            cursor: var(--cursor-url, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>💖</text></svg>") 16 0, auto);
+        }
+
+        /* --- Custom Scrollbar (Works on WebKit: Chrome, Safari, Edge) --- */
+        ::-webkit-scrollbar { width: 12px; }
+        ::-webkit-scrollbar-track { background: var(--c-scroll-track); }
+        ::-webkit-scrollbar-thumb { background: var(--c-scroll-thumb); border: 2px solid var(--c-scroll-track); border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--c-header); }
+
+        /* --- Custom Text Selection --- */
+        ::selection { background: var(--c-selection-bg); color: var(--c-selection-text); }
+        ::-moz-selection { background: var(--c-selection-bg); color: var(--c-selection-text); }
+
+        body {
+            font-family: var(--font-pixel-main);
+            background-color: var(--c-bg);
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23F9A8D4' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            color: var(--c-text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 1rem;
+            transition: background-color 0.25s ease; /* FASTER TRANSITION */
+            scrollbar-color: var(--c-scroll-thumb) var(--c-scroll-track);
+        }
+
+        .main-container {
+            width: 100%;
+            max-width: 1000px;
+            height: 95vh;
+            max-height: 800px;
+            background: var(--c-container-bg);
+            border: 3px dotted var(--c-border);
+            padding: 1rem;
+            box-shadow: 8px 8px 0px var(--c-shadow);
+            transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header h1 {
+            font-family: var(--font-pixel-en);
+            color: var(--c-header);
+            font-size: clamp(1.5rem, 4vw, 2rem);
+            text-shadow: 2px 2px 0px var(--c-container-bg);
+            text-align: center;
+            padding: 0.5rem;
+            border-bottom: 3px dotted var(--c-border);
+            margin-bottom: 1rem;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 1rem;
+            flex-grow: 1;
+            min-height: 0; /* Important for flexbox+grid child stretching */
+        }
+
+        /* --- Cheer Squad Chat Window --- */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            border: 3px dotted var(--c-border);
+            padding: 0.5rem;
+            background: rgba(0,0,0,0.05);
+            min-height: 0; /* <<< THE CRITICAL FIX IS HERE. Prevents the sidebar from expanding vertically. */
+        }
+        .sidebar h2 {
+            font-family: var(--font-pixel-en);
+            font-size: 1.2rem;
+            color: var(--c-header);
+            background: var(--c-accent);
+            padding: 5px;
+            text-align: center;
+            margin-bottom: 0.5rem;
+            flex-shrink: 0;
+        }
+        .chat-window {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        .chat-window ul {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+        .chat-window li {
+            padding: 0.6rem;
+            border-radius: 8px;
+            max-width: 90%;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .user-message {
+            background-color: var(--c-user-msg-bg);
+            align-self: flex-end;
+            text-align: right;
+            border-bottom-right-radius: 0;
+        }
+        .bot-message {
+            background-color: var(--c-bot-msg-bg);
+            align-self: flex-start;
+            border-bottom-left-radius: 0;
+        }
+        .bot-message::before { content: var(--bot-icon, '🌸 '); }
+        .grumpy-mode .bot-message::before { content: var(--bot-icon, '🖕 '); }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 1rem;
+            border: 3px dotted var(--c-border);
+        }
+        .content-scroll-area { overflow-y: auto; flex-grow: 1; padding-right: 1rem;}
+        
+        .main-content h2 {
+            font-family: var(--font-pixel-en);
+            font-size: clamp(1.2rem, 3vw, 1.5rem);
+            color: var(--c-header);
+            text-align: center;
+            margin-bottom: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .card-container { display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.5rem; }
+        .card { width: 48%; padding: 1rem; border: 3px dotted var(--c-border); background: var(--c-container-bg); }
+        .card h3 { font-family: var(--font-pixel-en); color: var(--c-header); margin-bottom: 0.5rem; }
+
+        .pill-section {
+            background: var(--c-accent);
+            border: 3px dotted var(--c-border);
+            padding: 1rem;
+            text-align: center;
+            margin-top: auto; /* Pushes to bottom */
+            flex-shrink: 0;
+        }
+
+        #action-input {
+            width: 100%;
+            padding: 0.75rem;
+            font-family: var(--font-pixel-main);
+            border: 3px dotted var(--c-border);
+            background: var(--c-container-bg);
+            margin-top: 1rem;
+            font-size: 1rem;
+            color: var(--c-text);
+            appearance: none;
+            border-radius: 0;
+        }
+        #action-input:focus { outline: 3px dotted var(--c-header); }
+        #action-input.error { border-color: red; animation: shake 0.5s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .pill-button {
+            font-family: var(--font-pixel-en);
+            background: var(--c-button-bg);
+            color: var(--c-container-bg);
+            border: 3px solid var(--c-container-bg);
+            box-shadow: 4px 4px 0px var(--c-button-shadow);
+            padding: 0.8rem 1.5rem;
+            font-size: 1.2rem;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+        .grumpy-mode .pill-button { text-shadow: 1px 1px 2px black; }
+        .pill-button:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px var(--c-button-shadow); }
+        .pill-button:active { transform: translate(4px, 4px); box-shadow: 0px 0px 0px var(--c-button-shadow); }
+
+        /* --- Settings, Modal, Disclaimer --- */
+        .settings-btn, #hackathon-disclaimer {
+            position: fixed;
+            background: var(--c-container-bg);
+            border: 3px dotted var(--c-border);
+            box-shadow: 4px 4px 0px var(--c-shadow);
+            z-index: 1001;
+            font-family: var(--font-pixel-main);
+            transition: all 0.3s ease;
+        }
+        .settings-btn { top: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; }
+        .settings-btn:hover { transform: scale(1.1) rotate(90deg); }
+        
+        #hackathon-disclaimer { bottom: 20px; left: 20px; padding: 0.5rem 1rem; font-size: 0.9rem; }
+        #hackathon-disclaimer:hover { transform: translateY(-2px); box-shadow: 6px 6px 0px var(--c-shadow); }
+        
+        .settings-panel {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 250px;
+            background: var(--c-container-bg);
+            border: 3px dotted var(--c-border);
+            box-shadow: 8px 8px 0px var(--c-shadow);
+            padding: 1rem;
+            z-index: 1000;
+            opacity: 0;
+            transform: translateY(-20px);
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .settings-panel.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .settings-panel h3 { font-family: var(--font-pixel-en); color: var(--c-header); margin-bottom: 1rem; }
+        .setting-group { margin-bottom: 1rem; }
+        .setting-group label { font-weight: bold; display: block; margin-bottom: 0.5rem; }
+        .lang-switcher, .mode-switcher { display: flex; gap: 0.5rem; }
+        .lang-switcher button, .mode-switcher button {
+            flex: 1;
+            font-family: var(--font-pixel-main);
+            padding: 0.5rem;
+            border: 2px dotted var(--c-border);
+            background: var(--c-accent);
+            cursor: pointer;
+        }
+        .lang-switcher button.active, .mode-switcher button.active {
+            background: var(--c-header);
+            color: var(--c-container-bg);
+            font-weight: bold;
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5);
+            display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease; z-index: 2000;
+        }
+        .modal-overlay.visible { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: var(--c-container-bg); border: 3px dotted var(--c-border); box-shadow: 8px 8px 0px var(--c-shadow);
+            padding: 2rem; width: 90%; max-width: 500px; text-align: center; transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.visible .modal-content { transform: scale(1); }
+        .modal-content h2 { font-family: var(--font-pixel-en); color: var(--c-header); font-size: 1.8rem; margin-bottom: 1rem; }
+        .modal-content p { margin-bottom: 1.5rem; font-size: 1.1rem; }
+        .modal-close-btn {
+            font-family: var(--font-pixel-en); background: var(--c-accent); border: 2px dotted var(--c-border);
+            padding: 0.5rem 1rem; cursor: pointer; font-size: 1rem;
+        }
+
+        .confetti-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;
+        }
+        .confetti-piece { position: absolute; top: -5vh; opacity: 0; font-size: 20px; }
+
+
+        /* --- RESPONSIVE DESIGN --- */
+        @media (max-width: 820px) {
+            body { padding: 0; }
+            .main-container {
+                height: 100vh;
+                max-height: none;
+                border: none;
+                box-shadow: none;
+                padding: 0.5rem;
+            }
+            .layout-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: 250px 1fr; /* Chat gets fixed height */
+            }
+            .sidebar { order: 2; }
+            .main-content { order: 1; padding: 0.5rem; }
+            .card-container { flex-direction: column; align-items: center; }
+            .card { width: 95%; }
+            #hackathon-disclaimer { font-size: 0.8rem; padding: 0.4rem 0.8rem; bottom: 10px; left: 10px; }
+            .settings-panel { right: 10px; left: 10px; width: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="settings-btn" id="settings-btn">⚙️</div>
+    <div id="hackathon-disclaimer">Hackathon Project (?)</div>
+    
+    <div class="settings-panel" id="settings-panel">
+        <h3 data-i18n-key="settingsTitle">設定</h3>
+        <div class="setting-group">
+            <label data-i18n-key="modeLabel">模式切換</label>
+            <div class="mode-switcher">
+                <button id="mode-cute" class="active" data-i18n-key="modeCute">可愛天使</button>
+                <button id="mode-grumpy" data-i18n-key="modeGrumpy">暴躁天使</button>
+            </div>
+        </div>
+        <div class="setting-group">
+            <label data-i18n-key="langLabel">語言</label>
+            <div class="lang-switcher">
+                <button id="lang-zh" class="active">繁體中文</button>
+                <button id="lang-en">English</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-content">
+            <h2 data-i18n-key="modalTitle"></h2>
+            <p data-i18n-key="modalText"></p>
+            <button class="modal-close-btn" id="modal-close-btn" data-i18n-key="modalBtn"></button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="confetti-container" id="confetti-container"></div>
+
+        <header class="header">
+            <h1 data-i18n-key="mainTitle">迴圈終結者 急救站</h1>
+        </header>
+
+        <div class="layout-grid">
+            <aside class="sidebar">
+                <h2 data-i18n-key="cheerTitle"></h2>
+                <div class="chat-window" id="chat-window">
+                    <ul>
+                        <!-- Chat messages will be added here by JS -->
+                    </ul>
+                </div>
+            </aside>
+            <main class="main-content">
+                <div class="content-scroll-area">
+                    <h2 data-i18n-key="mainSubtitle"></h2>
+                    <div class="card-container">
+                        <div class="card">
+                            <h3 data-i18n-key="card1Title"></h3>
+                            <p data-i18n-key="card1Text"></p>
+                        </div>
+                        <div class="card">
+                            <h3 data-i18n-key="card2Title"></h3>
+                            <p data-i18n-key="card2Text"></p>
+                        </div>
+                    </div>
+                </div>
+                <form class="pill-section" id="action-form">
+                    <h3 data-i18n-key="pillTitle"></h3>
+                    <p data-i18n-key="pillText"></p>
+                    <input type="text" id="action-input" autocomplete="off">
+                    <button type="submit" class="pill-button" id="action-button" data-i18n-key="pillBtn"></button>
+                </form>
+            </main>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE & DOM ELEMENTS ---
+            let currentLang = localStorage.getItem('appLang') || 'zh-Hant';
+            let currentMode = localStorage.getItem('appMode') || 'cute';
+            const chatHistoryKey = 'cheerSquadChatHistory';
+            const MAX_MESSAGES = 50; // Chat message limit for performance
+
+            const allI18nElements = document.querySelectorAll('[data-i18n-key]');
+            const body = document.body;
+            const chatWindow = document.getElementById('chat-window');
+            const chatList = chatWindow.querySelector('ul');
+            const actionForm = document.getElementById('action-form');
+            const actionInput = document.getElementById('action-input');
+            const confettiContainer = document.getElementById('confetti-container');
+            const hackathonDisclaimer = document.getElementById('hackathon-disclaimer');
+            const settingsBtn = document.getElementById('settings-btn');
+            const settingsPanel = document.getElementById('settings-panel');
+            const modeCuteBtn = document.getElementById('mode-cute');
+            const modeGrumpyBtn = document.getElementById('mode-grumpy');
+            const langZhBtn = document.getElementById('lang-zh');
+            const langEnBtn = document.getElementById('lang-en');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalCloseBtn = document.getElementById('modal-close-btn');
+
+            // --- TRANSLATION DATA ---
+            const translations = {
+                'zh-Hant': {
+                    'cute': {
+                        'mainTitle': '💖 行動派小天使 急救站 💖',
+                        'cheerTitle': '✨ 你的專屬應援團 ✨',
+                        'mainSubtitle': '你不是有問題... 只是需要一顆小小的藥丸！',
+                        'card1Title': '分析癱瘓...',
+                        'card1Text': '想太多做得少，害怕不完美所以乾脆不動...我知道啦！',
+                        'card2Title': '創傷迴圈...',
+                        'card2Text': '腦袋一直重播黑歷史，覺得努力也沒用...真的辛苦你了！',
+                        'pillTitle': '💊 神聖行動藥丸 💊',
+                        'pillText': '寫下一件小到不可能失敗的事，然後按下按鈕，讓魔法發生！',
+                        'pillBtn': '服用我的「行動藥丸」！',
+                        'inputPlaceholder': '例如: 喝一杯水 / 摸一下貓 / 回覆\'ok\'',
+                        'inputError': '不可以空白喔！寫點什麼嘛！',
+                        'modalTitle': '嘿！就是你！',
+                        'modalText': '我知道你很累，也知道你的腦袋快爆炸了。但你今天點進來了，這就代表你超棒的。準備好終結那個討厭的迴圈了嗎？',
+                        'modalBtn': '準備好了！(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)',
+                        'settingsTitle': '設定',
+                        'modeLabel': '模式切換',
+                        'modeCute': '可愛天使',
+                        'modeGrumpy': '暴躁天使',
+                        'langLabel': '語言',
+                        'initialCheer': '有什麼煩惱嗎？寫下來，我們一起把它變成行動！',
+                        'cheers': [ "你按下了按鈕！天啊！", "這一步超重要的！你做到了！", "你看！行動沒有那麼可怕！", "我就知道你可以的！✨", "太棒了！你正在改寫歷史！", "你比全世界99%的人都勇敢！", "給你一個大大的抱抱！💖", "現在，沒有什麼能阻止你了！", "你是最棒的！不接受反駁！" ]
+                    },
+                    'grumpy': {
+                        'mainTitle': '🖕 暴躁天使 精神急救站 🖕',
+                        'cheerTitle': '🖕 踹你屁股的應援團 🖕',
+                        'mainSubtitle': '你他媽的不是有問題... 你是欠一顆藥丸！',
+                        'card1Title': '分析癱瘓，哈？',
+                        'card1Text': '想太多做得少？害怕不完美？你是在寫論文還是在過人生？',
+                        'card2Title': '創傷迴圈，嗯？',
+                        'card2Text': '腦袋一直重播黑歷史？你是DJ嗎？給我換一首！',
+                        'pillTitle': '💊 給我吞下這顆該死的藥丸 💊',
+                        'pillText': '寫下一件小到不可能失敗的事。現在。不要讓我說第二次。',
+                        'pillBtn': '服用這顆該死的藥丸！',
+                        'inputPlaceholder': '例如: 呼吸 / 眨眼 / 停止抱怨',
+                        'inputError': '空白？你腦子也是空白的嗎？寫！',
+                        'modalTitle': '喂！看這裡！',
+                        'modalText': '我知道你很累，腦袋快炸了。很好。這代表你還活著。現在，準備好終結你那該死的、自怨自艾的廣播劇了嗎？',
+                        'modalBtn': '早就該他媽的準備好了！',
+                        'settingsTitle': '設定啦！',
+                        'modeLabel': '人格切換',
+                        'modeCute': '裝可愛',
+                        'modeGrumpy': '說實話',
+                        'langLabel': '語言',
+                        'initialCheer': '有什麼屁事？寫下來，然後滾去做。',
+                        'cheers': [ "你終於按了？花了多久？", "很好。不要搞砸了。", "行動而已，有那麼可怕嗎？", "幹得不錯。別驕傲。", "你正在改寫你那該死的悲劇。", "你比你想像的還要不廢物。", "給你一個...不情願的肯定。", "現在，滾去做事！", "你是最不爛的！暫時！" ]
+                    }
+                },
+                'en': {
+                    'cute': {
+                        'mainTitle': '💖 Action Angel First-Aid Station 💖',
+                        'cheerTitle': '✨ Your Personal Cheer Squad ✨',
+                        'mainSubtitle': "You're not broken... You just need a tiny pill!",
+                        'card1Title': 'Analysis Paralysis...',
+                        'card1Text': 'Thinking too much, doing too little, afraid it won\'t be perfect... I know!',
+                        'card2Title': 'Trauma Loop...',
+                        'card2Text': 'Replaying the bad past, feeling like effort is useless... You\'ve been through a lot!',
+                        'pillTitle': '💊 The Holy Action Pill 💊',
+                        'pillText': 'Write down one thing so small you can\'t fail, press the button, and let the magic happen!',
+                        'pillBtn': 'Take My "Action Pill"!',
+                        'inputPlaceholder': 'e.g., Drink water / Pet a cat / Reply "ok"',
+                        'inputError': 'Hey! It can\'t be empty! Write something!',
+                        'modalTitle': 'Hey! It\'s You!',
+                        'modalText': "I know you're tired, and your brain is about to explode. But you're here today, and that makes you awesome. Ready to break that annoying loop?",
+                        'modalBtn': 'Ready! (⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)',
+                        'settingsTitle': 'Settings',
+                        'modeLabel': 'Mode Switch',
+                        'modeCute': 'Cute Angel',
+                        'modeGrumpy': 'Grumpy Angel',
+                        'langLabel': 'Language',
+                        'initialCheer': 'What\'s on your mind? Write it down, and let\'s turn it into action!',
+                        'cheers': [ "You pressed the button! OMG!", "This step is super important! You did it!", "See? Taking action isn't so scary!", "I knew you could do it! ✨", "Amazing! You're rewriting history!", "You're braver than 99% of the world!", "Sending you a big hug! 💖", "Now, nothing can stop you!", "You're the best! No arguments!" ]
+                    },
+                    'grumpy': {
+                        'mainTitle': '🖕 Grumpy Angel Mental ER 🖕',
+                        'cheerTitle': '🖕 Your Ass-Kicking Squad 🖕',
+                        'mainSubtitle': "You're not broken... You're just in need of a damn pill!",
+                        'card1Title': 'Analysis Paralysis, huh?',
+                        'card1Text': "Thinking too much, doing too little? Afraid of imperfection? Are you writing a thesis or living a life?",
+                        'card2Title': 'Trauma Loop, eh?',
+                        'card2Text': 'Replaying the past? Are you a DJ? Change the damn track!',
+                        'pillTitle': '💊 Swallow This Damn Pill 💊',
+                        'pillText': 'Write down one thing so small you can\'t fail. Now. Don\'t make me repeat myself.',
+                        'pillBtn': 'Take The F*cking Pill!',
+                        'inputPlaceholder': 'e.g., Breathe / Blink / Stop whining',
+                        'inputError': 'Empty? Is your brain empty too? WRITE!',
+                        'modalTitle': 'Oi! Look Here!',
+                        'modalText': "I know you're tired, brain about to explode. Good. It means you're still alive. Now, are you ready to end your pathetic, self-pitying radio drama?",
+                        'modalBtn': 'About F*cking Time!',
+                        'settingsTitle': 'Settings!',
+                        'modeLabel': 'Personality Switch',
+                        'modeCute': 'Pretend Cute',
+                        'modeGrumpy': 'Be Real',
+                        'langLabel': 'Language',
+                        'initialCheer': 'What\'s your problem? Write it down and get to it.',
+                        'cheers': [ "You finally pressed it? What took you so long?", "Good. Don't fuck it up now.", "It's just an action. Was it that scary?", "Not bad. Don't get cocky.", "You're rewriting your damn tragedy.", "You're less useless than you think.", "Here's a... reluctant nod of approval.", "Now, get back to work, maggot!", "You're the least terrible! For now!" ]
+                    }
+                }
+            };
+            
+            // --- FUNCTIONS ---
+            function updateText() {
+                const langPack = translations[currentLang][currentMode];
+                allI18nElements.forEach(el => {
+                    const key = el.dataset.i18nKey;
+                    if (langPack[key]) {
+                        el.innerHTML = langPack[key];
+                    }
+                });
+                actionInput.placeholder = langPack.inputPlaceholder;
+            }
+
+            function setMode(mode) {
+                currentMode = mode;
+                body.classList.toggle('grumpy-mode', mode === 'grumpy');
+                modeCuteBtn.classList.toggle('active', mode === 'cute');
+                modeGrumpyBtn.classList.toggle('active', mode === 'grumpy');
+                const cursorText = (mode === 'cute') ? '💖' : '🖕';
+                body.style.setProperty('--cursor-url', `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='48' viewport='0 0 100 100' style='fill:black;font-size:24px;'><text y='50%'>${cursorText}</text></svg>") 16 0, auto`);
+                localStorage.setItem('appMode', mode);
+                updateText();
+            }
+
+            function setLanguage(lang) {
+                currentLang = lang;
+                langZhBtn.classList.toggle('active', lang === 'zh-Hant');
+                langEnBtn.classList.toggle('active', lang === 'en');
+                localStorage.setItem('appLang', lang);
+                updateText();
+            }
+
+            function scrollToBottom() {
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            function saveChat() {
+                localStorage.setItem(chatHistoryKey, chatList.innerHTML);
+            }
+
+            function loadChat() {
+                const savedChat = localStorage.getItem(chatHistoryKey);
+                if (savedChat) {
+                    chatList.innerHTML = savedChat;
+                    scrollToBottom();
+                } else {
+                    addMessage(translations[currentLang][currentMode].initialCheer, 'bot-message');
+                }
+            }
+            
+            function addMessage(text, type, save = true) {
+                const li = document.createElement('li');
+                li.className = type;
+                li.textContent = text;
+                chatList.appendChild(li);
+
+                while (chatList.children.length > MAX_MESSAGES) {
+                    chatList.removeChild(chatList.firstChild);
+                }
+
+                scrollToBottom();
+                if (save) {
+                    saveChat();
+                }
+            }
+            
+            function handleFormSubmit(e) {
+                e.preventDefault(); 
+                const userText = actionInput.value.trim();
+
+                if (userText === '') {
+                    actionInput.classList.add('error');
+                    actionInput.placeholder = translations[currentLang][currentMode].inputError;
+                    setTimeout(() => actionInput.classList.remove('error'), 500);
+                    return;
+                }
+
+                addMessage(userText, 'user-message');
+                actionInput.value = '';
+                actionInput.placeholder = translations[currentLang][currentMode].inputPlaceholder;
+                launchConfetti(currentMode);
+
+                const cheers = [...translations[currentLang][currentMode].cheers];
+                
+                for (let i = cheers.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cheers[i], cheers[j]] = [cheers[j], cheers[i]];
+                }
+
+                const cheersToSend = cheers.slice(0, 3); 
+                let totalDelay = 0;
+
+                cheersToSend.forEach((cheer) => {
+                    const currentDelay = 700 + Math.random() * 600;
+                    totalDelay += currentDelay;
+                    
+                    setTimeout(() => {
+                        addMessage(cheer, 'bot-message');
+                    }, totalDelay);
+                });
+            }
+
+            function launchConfetti(mode) {
+                for (let i = 0; i < 150; i++) {
+                    createConfettiPiece(mode);
+                }
+            }
+
+            function createConfettiPiece(mode) {
+                const piece = document.createElement('div');
+                piece.classList.add('confetti-piece');
+                const cuteIcons = ['💖', '✨', '🌸', '🎀', '⭐'];
+                const grumpyIcons = ['🖕', '🔥', '💀', '💢', '⚡'];
+                const icons = (mode === 'cute') ? cuteIcons : grumpyIcons;
+                piece.innerHTML = icons[Math.floor(Math.random() * icons.length)];
+                piece.style.fontSize = Math.random() * 20 + 15 + 'px';
+                piece.style.left = Math.random() * 100 + 'vw';
+                piece.style.animation = `fall ${Math.random() * 3 + 3}s ${Math.random() * 2}s linear forwards`;
+                confettiContainer.appendChild(piece);
+                setTimeout(() => piece.remove(), 6000);
+            }
+
+            if(!document.getElementById('confetti-keyframes')) {
+                const styleSheet = document.createElement("style");
+                styleSheet.id = 'confetti-keyframes';
+                styleSheet.innerText = `
+                    @keyframes fall {
+                        from { transform: translateY(-20vh) rotate(0deg); opacity: 1; }
+                        to { transform: translateY(120vh) rotate(720deg); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(styleSheet);
+            }
+            
+            // --- EVENT LISTENERS ---
+            actionForm.addEventListener('submit', handleFormSubmit);
+
+            hackathonDisclaimer.addEventListener('click', () => {
+                alert('This project was created for a hackathon. It\'s a tool designed with love to help people break out of negative thought loops.');
+            });
+
+            settingsBtn.addEventListener('click', () => {
+                settingsPanel.classList.toggle('visible');
+            });
+            
+            modeCuteBtn.addEventListener('click', () => setMode('cute'));
+            modeGrumpyBtn.addEventListener('click', () => setMode('grumpy'));
+            langZhBtn.addEventListener('click', () => setLanguage('zh-Hant'));
+            langEnBtn.addEventListener('click', () => setLanguage('en'));
+
+            modalCloseBtn.addEventListener('click', () => modalOverlay.classList.remove('visible'));
+            modalOverlay.addEventListener('click', (e) => {
+                if(e.target === modalOverlay) modalOverlay.classList.remove('visible');
+            });
+
+            // --- INITIALIZATION ---
+            function init() {
+                setMode(currentMode);
+                setLanguage(currentLang);
+                loadChat();
+
+                setTimeout(() => {
+                    if (!localStorage.getItem('visitedBefore')) {
+                        modalOverlay.classList.add('visible');
+                        localStorage.setItem('visitedBefore', 'true');
+                    }
+                }, 500);
+            }
+            
+            init();
+        });
+    </script>
+</body>
+</html>
